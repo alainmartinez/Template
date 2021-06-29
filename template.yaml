@@ -1,0 +1,802 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  DesiredCapacity:
+    Type: Number
+    Default: '1'
+    Description: Number of EC2 instances to launch in your ECS cluster.
+  MaxSize:
+    Type: Number
+    Default: '2'
+    Description: Maximum number of EC2 instances that can be launched in your ECS cluster.
+  ECSAMI:
+    Description: AMI ID
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t2.medium
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+      - m3.medium
+      - m3.large
+      - m3.xlarge
+      - m3.2xlarge
+      - m4.large
+      - m4.xlarge
+      - m4.2xlarge
+      - m4.4xlarge
+      - m4.10xlarge
+      - c4.large
+      - c4.xlarge
+      - c4.2xlarge
+      - c4.4xlarge
+      - c4.8xlarge
+      - c3.large
+      - c3.xlarge
+      - c3.2xlarge
+      - c3.4xlarge
+      - c3.8xlarge
+      - r3.large
+      - r3.xlarge
+      - r3.2xlarge
+      - r3.4xlarge
+      - r3.8xlarge
+      - i2.xlarge
+      - i2.2xlarge
+      - i2.4xlarge
+      - i2.8xlarge
+Resources:
+  JenkinsVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 172.1.0.0/16
+      EnableDnsHostnames: true
+      Tags:
+        - Key: JenkinsVPC
+          Value: !Sub 'VPC - ${AWS::StackName}'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 7901f0e6-9711-4171-ac8d-07c003e358e4
+  JenkinsIGW:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: JenkinsIGW
+          Value: !Sub 'IGW - ${AWS::StackName}'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: f18191e9-31a4-4f48-8dce-dbcbf682c344
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref JenkinsVPC
+      InternetGatewayId: !Ref JenkinsIGW
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 7a5f9ef7-2506-4a74-8799-8d35f3813d7f
+  JenkinsPublic1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref JenkinsVPC
+      CidrBlock: 172.1.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+        - Key: Jenkins-PublicSubnet
+          Value: !Sub 'Public Subnet 1 - ${AWS::StackName}'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+  JenkinsPublic2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref JenkinsVPC
+      CidrBlock: 172.1.2.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+        - Key: Jenkins-PublicSubnet
+          Value: !Sub 'Public Subnet 1 - ${AWS::StackName}'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: d78aca9f-892d-46e0-966f-79ac015ddfbd
+  JenkinsPrivate1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref JenkinsVPC
+      CidrBlock: 172.1.3.0/24
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select 
+        - 2
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+        - Key: Jenkins-PublicSubnet
+          Value: !Sub 'Public Subnet 1 - ${AWS::StackName}'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: b63aaeb2-af87-44d1-94bd-6ab68e00bc18
+  JenkinsPrivate2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref JenkinsVPC
+      CidrBlock: 172.1.4.0/24
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select 
+        - 3
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+        - Key: Jenkins-PublicSubnet
+          Value: !Sub 'Public Subnet 1 - ${AWS::StackName}'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: c86aa1db-7ef3-4d54-ab8f-b134e5874770
+  NatGateway1EIP:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      Domain: vpc
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 89d1295f-abd5-4096-baff-3c493149761b
+  NatGateway2EIP:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      Domain: vpc
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 4cff8dba-2a13-4a5d-bce6-96d795a65070
+  NatGateway1:
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      AllocationId: !GetAtt NatGateway1EIP.AllocationId
+      SubnetId: !Ref JenkinsPublic1
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 513941ac-024d-4944-8498-4191dbd70011
+  NatGateway2:
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      AllocationId: !GetAtt NatGateway2EIP.AllocationId
+      SubnetId: !Ref JenkinsPublic2
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: be538886-68ee-48d7-8626-68a15a220ba3
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref JenkinsVPC
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: bb08b4c9-5dd8-42ca-afcd-001f20f0f76a
+  DefaultPublicRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref JenkinsIGW
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: c32e446d-bda3-474d-a44f-6e22350c7ca4
+  PublicSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref JenkinsPublic1
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 33ee725b-b465-4c78-a746-5f3f034c13da
+  PublicSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref JenkinsPublic2
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: c12169d2-1c3d-4515-96e8-d0f767898e08
+  PrivateRouteTable1:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref JenkinsVPC
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 0efab4e1-cf6f-4882-a209-b05bcfbf9289
+  DefaultPrivateRoute1:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 7b4c58a3-3f92-4179-9db3-88357b317dfc
+  PrivateSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref JenkinsPrivate1
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: d87f1adc-47e5-42e8-a454-9f2f967518e4
+  PrivateRouteTable2:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref JenkinsVPC
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: b5433804-0f26-4252-bca8-6c3b8fac0ef3
+  DefaultPrivateRoute2:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 8f1e1c85-ea56-4543-9831-74306f13882a
+  PrivateSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      SubnetId: !Ref JenkinsPrivate2
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 8f0a6c7c-3c6c-44fa-94cd-7f0316131eb9
+  JenkinsSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Frontend Access
+      VpcId: !Ref JenkinsVPC
+      SecurityGroupIngress:
+        - Description: VPC CIDR
+          IpProtocol: '-1'
+          CidrIp: 172.1.1.0/24
+        - Description: VPC CIDR
+          IpProtocol: '-1'
+          CidrIp: 172.1.2.0/24
+        - Description: VPC CIDR
+          IpProtocol: '-1'
+          CidrIp: 172.1.3.0/24
+        - Description: VPC CIDR
+          IpProtocol: '-1'
+          CidrIp: 172.1.4.0/24
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 8f7e7289-9923-4174-b36e-fade8da34c16
+  JenkinsEC2:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      SecurityGroupIds:
+        - !Ref JenkinsSecurityGroup
+      SubnetId: !Ref JenkinsPublic1
+      InstanceType: t2.medium
+      ImageId: ami-02da712bf540f0a69
+      KeyName: EMRTest
+      Tags:
+        - Key: Name
+          Value: Jenkins-Server
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          sudo yum update -y
+          sudo yum install docker -y
+          sudo service docker start
+          wget -P /home/ec2-user https://jenkinsdockerfilefiles.s3.amazonaws.com/Dockerfile
+          wget -P /home/ec2-user https://jenkinsdockerfilefiles.s3.amazonaws.com/plugins.txt
+          wget -P /home/ec2-user https://jenkinsdockerfilefiles.s3.amazonaws.com/casc.yaml
+          sudo docker build -t jenkins:jcasc /home/ec2-user
+          sudo docker volume create jenkinsvol
+          sudo docker run -v jenkinsvol:/var/jenkins_home --name jenkins -p 50000:50000 -p 8080:8080 --restart unless-stopped jenkins:jcasc
+          
+          
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 506c284d-99e4-4aaf-a0b7-5e7c57d67a2d
+  EC2JenkinsTargetGrp:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 15
+      HealthyThresholdCount: 5
+      Matcher:
+        HttpCode: '200'
+      Name: JenkinsEC2TargetGroup
+      Port: 80
+      Protocol: HTTP
+      Targets:
+        - Id:
+            Ref: JenkinsEC2
+          Port: 80
+      VpcId: !Ref JenkinsVPC
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 27921384-4b3d-4716-a129-427f160aa46f
+  ALBListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref EC2JenkinsTargetGrp
+      LoadBalancerArn: !Ref JenkinsALB
+      Port: 80
+      Protocol: HTTP
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: c53d6dfd-4a6e-4710-a994-2d9905916aff
+  JenkinsALB:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Scheme: internet-facing
+      Subnets:
+        - !Ref JenkinsPublic1
+        - !Ref JenkinsPublic2
+        - !Ref JenkinsPrivate1
+        - !Ref JenkinsPrivate2
+      SecurityGroups:
+        - !Ref JenkinsSecurityGroup
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: f249d012-d69d-480b-870b-15530a8d853c
+  JenkinsCluster:
+    Type: 'AWS::ECS::Cluster'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: be37331b-6bc3-4e6d-bdc6-ed49a3e0e3d3
+  ECSAutoScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref JenkinsPrivate1
+        - !Ref JenkinsPrivate2
+      LaunchConfigurationName: !Ref ContainerInstances
+      MinSize: '1'
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
+      TargetGroupARNs:
+        - !Ref EC2JenkinsTargetGrp
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: 'true'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: ec7f02db-45ce-4a49-ab9a-5160e392198e
+  ContainerInstances:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      ImageId: !Ref ECSAMI
+      SecurityGroups:
+        - !Ref JenkinsSecurityGroup
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      UserData:
+        'Fn::Base64': !Sub >
+          #!/bin/bash -xe
+
+          echo ECS_CLUSTER=${JenkinsCluster} >> /etc/ecs/ecs.config
+
+          yum install -y aws-cfn-bootstrap
+
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource
+          ECSAutoScalingGroup --region us-east-1
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 421fdce7-6bcd-4d10-96e1-16ba89e8aeb5
+  EC2InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - ecsInstanceRole
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: ba2e040a-dc91-4ca1-a2a5-58a84640e195
+Metadata:
+  'AWS::CloudFormation::Designer':
+    f18191e9-31a4-4f48-8dce-dbcbf682c344:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 60
+        'y': 750
+      z: 1
+      embeds: []
+    7901f0e6-9711-4171-ac8d-07c003e358e4:
+      size:
+        width: 690
+        height: 690
+      position:
+        x: 60
+        'y': 90
+      z: 1
+      embeds:
+        - 8f7e7289-9923-4174-b36e-fade8da34c16
+        - b5433804-0f26-4252-bca8-6c3b8fac0ef3
+        - 0efab4e1-cf6f-4882-a209-b05bcfbf9289
+        - bb08b4c9-5dd8-42ca-afcd-001f20f0f76a
+        - c86aa1db-7ef3-4d54-ab8f-b134e5874770
+        - b63aaeb2-af87-44d1-94bd-6ab68e00bc18
+        - d78aca9f-892d-46e0-966f-79ac015ddfbd
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+    8f7e7289-9923-4174-b36e-fade8da34c16:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 600
+        'y': 150
+      z: 2
+      parent: 7901f0e6-9711-4171-ac8d-07c003e358e4
+      embeds: []
+      iscontainedinside:
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+    c86aa1db-7ef3-4d54-ab8f-b134e5874770:
+      size:
+        width: 150
+        height: 150
+      position:
+        x: 90
+        'y': 450
+      z: 2
+      parent: 7901f0e6-9711-4171-ac8d-07c003e358e4
+      embeds: []
+      iscontainedinside:
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+    b63aaeb2-af87-44d1-94bd-6ab68e00bc18:
+      size:
+        width: 150
+        height: 150
+      position:
+        x: 390
+        'y': 360
+      z: 2
+      parent: 7901f0e6-9711-4171-ac8d-07c003e358e4
+      embeds: []
+      iscontainedinside:
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+    d78aca9f-892d-46e0-966f-79ac015ddfbd:
+      size:
+        width: 240
+        height: 240
+      position:
+        x: 390
+        'y': 150
+      z: 2
+      parent: 7901f0e6-9711-4171-ac8d-07c003e358e4
+      embeds:
+        - be538886-68ee-48d7-8626-68a15a220ba3
+      iscontainedinside:
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+    5f2f4f9c-5226-4e60-a301-e012ed0ff0e1:
+      size:
+        width: 330
+        height: 240
+      position:
+        x: 90
+        'y': 150
+      z: 2
+      parent: 7901f0e6-9711-4171-ac8d-07c003e358e4
+      embeds:
+        - 506c284d-99e4-4aaf-a0b7-5e7c57d67a2d
+        - 513941ac-024d-4944-8498-4191dbd70011
+      iscontainedinside:
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+    506c284d-99e4-4aaf-a0b7-5e7c57d67a2d:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 120
+        'y': 180
+      z: 3
+      parent: 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+      embeds: []
+      isassociatedwith:
+        - 8f7e7289-9923-4174-b36e-fade8da34c16
+      iscontainedinside:
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+    7a5f9ef7-2506-4a74-8799-8d35f3813d7f:
+      source:
+        id: 7901f0e6-9711-4171-ac8d-07c003e358e4
+      target:
+        id: f18191e9-31a4-4f48-8dce-dbcbf682c344
+      z: 1
+    bb08b4c9-5dd8-42ca-afcd-001f20f0f76a:
+      size:
+        width: 240
+        height: 240
+      position:
+        x: 360
+        'y': 150
+      z: 2
+      parent: 7901f0e6-9711-4171-ac8d-07c003e358e4
+      embeds:
+        - c32e446d-bda3-474d-a44f-6e22350c7ca4
+      iscontainedinside:
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+    c32e446d-bda3-474d-a44f-6e22350c7ca4:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 390
+        'y': 240
+      z: 3
+      parent: bb08b4c9-5dd8-42ca-afcd-001f20f0f76a
+      embeds: []
+      isassociatedwith:
+        - f18191e9-31a4-4f48-8dce-dbcbf682c344
+      iscontainedinside:
+        - bb08b4c9-5dd8-42ca-afcd-001f20f0f76a
+        - bb08b4c9-5dd8-42ca-afcd-001f20f0f76a
+        - bb08b4c9-5dd8-42ca-afcd-001f20f0f76a
+        - bb08b4c9-5dd8-42ca-afcd-001f20f0f76a
+        - bb08b4c9-5dd8-42ca-afcd-001f20f0f76a
+        - bb08b4c9-5dd8-42ca-afcd-001f20f0f76a
+    c12169d2-1c3d-4515-96e8-d0f767898e08:
+      source:
+        id: bb08b4c9-5dd8-42ca-afcd-001f20f0f76a
+      target:
+        id: d78aca9f-892d-46e0-966f-79ac015ddfbd
+      z: 2
+    33ee725b-b465-4c78-a746-5f3f034c13da:
+      source:
+        id: bb08b4c9-5dd8-42ca-afcd-001f20f0f76a
+      target:
+        id: 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+      z: 2
+    27921384-4b3d-4716-a129-427f160aa46f:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 780
+        'y': 90
+      z: 1
+      embeds: []
+      iscontainedinside:
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+    f249d012-d69d-480b-870b-15530a8d853c:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 870
+        'y': 90
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 8f7e7289-9923-4174-b36e-fade8da34c16
+      iscontainedinside:
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+        - d78aca9f-892d-46e0-966f-79ac015ddfbd
+        - b63aaeb2-af87-44d1-94bd-6ab68e00bc18
+        - c86aa1db-7ef3-4d54-ab8f-b134e5874770
+    c53d6dfd-4a6e-4710-a994-2d9905916aff:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 780
+        'y': 210
+      z: 1
+      embeds: []
+    4cff8dba-2a13-4a5d-bce6-96d795a65070:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 960
+        'y': 90
+      z: 1
+      embeds: []
+    89d1295f-abd5-4096-baff-3c493149761b:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1080
+        'y': 90
+      z: 1
+      embeds: []
+    b5433804-0f26-4252-bca8-6c3b8fac0ef3:
+      size:
+        width: 240
+        height: 240
+      position:
+        x: 390
+        'y': 420
+      z: 2
+      parent: 7901f0e6-9711-4171-ac8d-07c003e358e4
+      embeds:
+        - 8f1e1c85-ea56-4543-9831-74306f13882a
+      iscontainedinside:
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+    0efab4e1-cf6f-4882-a209-b05bcfbf9289:
+      size:
+        width: 240
+        height: 240
+      position:
+        x: 90
+        'y': 420
+      z: 2
+      parent: 7901f0e6-9711-4171-ac8d-07c003e358e4
+      embeds:
+        - 7b4c58a3-3f92-4179-9db3-88357b317dfc
+      iscontainedinside:
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+        - 7901f0e6-9711-4171-ac8d-07c003e358e4
+    8f0a6c7c-3c6c-44fa-94cd-7f0316131eb9:
+      source:
+        id: b5433804-0f26-4252-bca8-6c3b8fac0ef3
+      target:
+        id: c86aa1db-7ef3-4d54-ab8f-b134e5874770
+      z: 2
+    d87f1adc-47e5-42e8-a454-9f2f967518e4:
+      source:
+        id: 0efab4e1-cf6f-4882-a209-b05bcfbf9289
+      target:
+        id: b63aaeb2-af87-44d1-94bd-6ab68e00bc18
+      z: 2
+    be538886-68ee-48d7-8626-68a15a220ba3:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 420
+        'y': 180
+      z: 3
+      parent: d78aca9f-892d-46e0-966f-79ac015ddfbd
+      embeds: []
+      iscontainedinside:
+        - d78aca9f-892d-46e0-966f-79ac015ddfbd
+        - d78aca9f-892d-46e0-966f-79ac015ddfbd
+        - d78aca9f-892d-46e0-966f-79ac015ddfbd
+    8f1e1c85-ea56-4543-9831-74306f13882a:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 420
+        'y': 450
+      z: 3
+      parent: b5433804-0f26-4252-bca8-6c3b8fac0ef3
+      embeds: []
+      isassociatedwith:
+        - be538886-68ee-48d7-8626-68a15a220ba3
+      iscontainedinside:
+        - b5433804-0f26-4252-bca8-6c3b8fac0ef3
+        - b5433804-0f26-4252-bca8-6c3b8fac0ef3
+        - b5433804-0f26-4252-bca8-6c3b8fac0ef3
+    513941ac-024d-4944-8498-4191dbd70011:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 150
+        'y': 180
+      z: 3
+      parent: 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+      embeds: []
+      iscontainedinside:
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+        - 5f2f4f9c-5226-4e60-a301-e012ed0ff0e1
+    7b4c58a3-3f92-4179-9db3-88357b317dfc:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 120
+        'y': 450
+      z: 3
+      parent: 0efab4e1-cf6f-4882-a209-b05bcfbf9289
+      embeds: []
+      isassociatedwith:
+        - 513941ac-024d-4944-8498-4191dbd70011
+      iscontainedinside:
+        - 0efab4e1-cf6f-4882-a209-b05bcfbf9289
+        - 0efab4e1-cf6f-4882-a209-b05bcfbf9289
+        - 0efab4e1-cf6f-4882-a209-b05bcfbf9289
+    ba2e040a-dc91-4ca1-a2a5-58a84640e195:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1170
+        'y': 90
+      z: 1
+      embeds: []
+    be37331b-6bc3-4e6d-bdc6-ed49a3e0e3d3:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1290
+        'y': 90
+      z: 1
+      embeds: []
+    421fdce7-6bcd-4d10-96e1-16ba89e8aeb5:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1410
+        'y': 90
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 8f7e7289-9923-4174-b36e-fade8da34c16
+    ec7f02db-45ce-4a49-ab9a-5160e392198e:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1530
+        'y': 90
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 421fdce7-6bcd-4d10-96e1-16ba89e8aeb5
+        - 27921384-4b3d-4716-a129-427f160aa46f
+      iscontainedinside:
+        - b63aaeb2-af87-44d1-94bd-6ab68e00bc18
+        - c86aa1db-7ef3-4d54-ab8f-b134e5874770
